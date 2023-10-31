@@ -14,7 +14,9 @@
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
 
-#include <THC/THC.h>
+//#include <THC/THC.h>  // THC.h is not existed in the latest Pytorch.
+#include <c10/cuda/CUDAMacros.h> // use new .h files to replace THC.h
+#include <c10/cuda/CUDAStream.h>
 
 #include "prroi_pooling_gpu_impl.cuh"
 
@@ -28,18 +30,20 @@ at::Tensor prroi_pooling_forward_cuda(const at::Tensor &features, const at::Tens
     auto output = at::zeros({nr_rois, nr_channels, pooled_height, pooled_width}, features.options());
 
     if (output.numel() == 0) {
-        THCudaCheck(cudaGetLastError());
+        //THCudaCheck(cudaGetLastError());
+        C10_CUDA_CHECK(cudaGetLastError());
         return output;
     }
 
     cudaStream_t stream = at::cuda::getCurrentCUDAStream();
     PrRoIPoolingForwardGpu(
-        stream, features.data<float>(), rois.data<float>(), output.data<float>(),
+        stream, features.data_ptr<float>(), rois.data_ptr<float>(), output.data_ptr<float>(),
         nr_channels, height, width, pooled_height, pooled_width, spatial_scale,
         top_count
     );
 
-    THCudaCheck(cudaGetLastError());
+    //THCudaCheck(cudaGetLastError());
+    C10_CUDA_CHECK(cudaGetLastError());
     return output;
 }
 
@@ -58,20 +62,22 @@ at::Tensor prroi_pooling_backward_cuda(
     int bottom_count = batch_size * nr_channels * height * width;
 
     if (output.numel() == 0) {
-        THCudaCheck(cudaGetLastError());
+        //THCudaCheck(cudaGetLastError());
+        C10_CUDA_CHECK(cudaGetLastError());
         return features_diff;
     }
 
     cudaStream_t stream = at::cuda::getCurrentCUDAStream();
     PrRoIPoolingBackwardGpu(
         stream,
-        features.data<float>(), rois.data<float>(), output.data<float>(), output_diff.data<float>(),
-        features_diff.data<float>(),
+        features.data_ptr<float>(), rois.data_ptr<float>(), output.data_ptr<float>(), output_diff.data_ptr<float>(),
+        features_diff.data_ptr<float>(),
         nr_channels, height, width, pooled_height, pooled_width, spatial_scale,
         top_count, bottom_count
     );
 
-    THCudaCheck(cudaGetLastError());
+    //THCudaCheck(cudaGetLastError());
+    C10_CUDA_CHECK(cudaGetLastError());
     return features_diff;
 }
 
@@ -89,25 +95,36 @@ at::Tensor prroi_pooling_coor_backward_cuda(
     int bottom_count = nr_rois * 5;
 
     if (output.numel() == 0) {
-        THCudaCheck(cudaGetLastError());
+        //THCudaCheck(cudaGetLastError());
+        C10_CUDA_CHECK(cudaGetLastError());
         return coor_diff;
     }
 
     cudaStream_t stream = at::cuda::getCurrentCUDAStream();
     PrRoIPoolingCoorBackwardGpu(
         stream,
-        features.data<float>(), rois.data<float>(), output.data<float>(), output_diff.data<float>(),
-        coor_diff.data<float>(),
+        features.data_ptr<float>(), rois.data_ptr<float>(), output.data_ptr<float>(), output_diff.data_ptr<float>(),
+        coor_diff.data_ptr<float>(),
         nr_channels, height, width, pooled_height, pooled_width, spatial_scale,
         top_count, bottom_count
     );
 
-    THCudaCheck(cudaGetLastError());
+    //THCudaCheck(cudaGetLastError());
+    C10_CUDA_CHECK(cudaGetLastError());
     return coor_diff;
 }
+
+
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("prroi_pooling_forward_cuda", &prroi_pooling_forward_cuda, "PRRoIPooling_forward");
     m.def("prroi_pooling_backward_cuda", &prroi_pooling_backward_cuda, "PRRoIPooling_backward");
     m.def("prroi_pooling_coor_backward_cuda", &prroi_pooling_coor_backward_cuda, "PRRoIPooling_backward_coor");
 }
+/*
+TORCH_LIBRARY_FRAGMENT(ltr, m) {
+m.def("prroi_pooling_forward_cuda", &prroi_pooling_forward_cuda, "PRRoIPooling_forward");
+    m.def("prroi_pooling_backward_cuda", &prroi_pooling_backward_cuda, "PRRoIPooling_backward");
+    m.def("prroi_pooling_coor_backward_cuda", &prroi_pooling_coor_backward_cuda, "PRRoIPooling_backward_coor");
+}
+*/

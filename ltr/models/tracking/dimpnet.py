@@ -14,6 +14,12 @@ from ltr import model_constructor
 import ltr.models.target_classifier.transformer as transformer
 from ltr.models.target_classifier.multihead_attention import MultiheadAttention
 
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", message="An output with one or more elements was resized since it had shape")
+
+
 
 class DiMPnet(nn.Module):
     """The DiMP network.
@@ -30,6 +36,7 @@ class DiMPnet(nn.Module):
         self.feature_extractor = feature_extractor
         self.classifier = classifier
         self.bb_regressor = bb_regressor
+        # classification_layer = 'layer3' or 'layer4', just a str.
         self.classification_layer = [classification_layer] if isinstance(classification_layer, str) else classification_layer
         self.bb_regressor_layer = bb_regressor_layer
         self.output_layers = sorted(list(set(self.classification_layer + self.bb_regressor_layer)))
@@ -50,21 +57,39 @@ class DiMPnet(nn.Module):
 
         assert train_imgs.dim() == 5 and test_imgs.dim() == 5, 'Expect 5 dimensional inputs'
 
+        # print('shape of train_imgs', train_imgs.shape) # [3 12 3 352 352]
+        # print('shape of text_imgs', test_imgs.shape) # [3 12 3 352 352]
+
         num_img_train = train_imgs.shape[0]
         num_img_test = test_imgs.shape[0]
 
         # Extract backbone features
         train_feat = self.extract_backbone_features(train_imgs.reshape(-1, *train_imgs.shape[-3:]))
         test_feat = self.extract_backbone_features(test_imgs.reshape(-1, *test_imgs.shape[-3:]))
+        # we get [36, 1000] as the train_feat shape.
+        # March 31. Next step is to have a look at the resnet50 part.
+        # how to get specific layers' output.
 
         # Classification features
         train_feat_clf = self.get_backbone_clf_feat(train_feat)
         test_feat_clf = self.get_backbone_clf_feat(test_feat)
+        # still [36, 1000] in fact, 36=3*12(images*sequences).
+        # so I think sequences = batch size
+
+        # train_feat_clf = train_feat_clf.reshape(num_img_train, -1, *train_feat_clf.shape[-3:])
+        # test_feat_clf = test_feat_clf.reshape(num_img_test, -1, *test_feat_clf.shape[-3:])
+        # want to be like: Dims (images_in_sequence, [sequences], feat_dim, H, W)
+        # therefore, the first step, resnet50, must extract features from specific inside layers.
 
         train_feat_clf = train_feat_clf.reshape(num_img_train, -1, *train_feat_clf.shape[-3:])
         test_feat_clf = test_feat_clf.reshape(num_img_test, -1, *test_feat_clf.shape[-3:])
+        # reshape to:
+        # num_img_train -1  other_feat
+        # 3             12  1000
   
         # Run classifier module
+        # the most important part
+        # should be 4 or 5 dims
         target_scores = self.classifier(train_feat_clf, test_feat_clf, train_label, train_bb, *args, **kwargs)
 
         # Get bb_regressor features
@@ -77,10 +102,23 @@ class DiMPnet(nn.Module):
         return target_scores, iou_pred
 
     def get_backbone_clf_feat(self, backbone_feat):
+        # backbone_feat is just a 2-d tensor. In previous operations we didn't extract specific layers feats.
+        # therefore, it is impossible to get specific layer's feat here.
+        # to solve this. 1. make it possible to get specific layer information in previous operations
+        # or 2. make it just get the final output feats.
+        # I need to make it clear that what is the classification used for. If it is for classification,
+        # then we don't need it. because our model only processes vessel. no other types.
+        # if it is about feature further extraction, then maybe we need to take it in.
+        # print('type of backbone_feat', type(backbone_feat)) # tensor
+        # print('shape of the backbone_feat', backbone_feat.shape) [36, 1000]
+
         feat = OrderedDict({l: backbone_feat[l] for l in self.classification_layer})
         if len(self.classification_layer) == 1:
             return feat[self.classification_layer[0]]
         return feat
+
+        # return backbone_feat
+
 
     def get_backbone_bbreg_feat(self, backbone_feat):
         return [backbone_feat[l] for l in self.bb_regressor_layer]
@@ -90,8 +128,10 @@ class DiMPnet(nn.Module):
 
     def extract_backbone_features(self, im, layers=None):
         if layers is None:
+            # print('layers is None!')
             layers = self.output_layers
         return self.feature_extractor(im, layers)
+        # return self.feature_extractor(im)
 
     def extract_features(self, im, layers=None):
         if layers is None:

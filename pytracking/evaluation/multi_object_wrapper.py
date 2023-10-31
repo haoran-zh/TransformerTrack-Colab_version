@@ -128,13 +128,13 @@ class MultiObjectWrapper:
         self.initialized_ids = info['init_object_ids'].copy()
         return out_merged
 
-    def track(self, image, info: dict = None) -> dict:
+    def track(self, image, info: dict = None) -> dict:  # input each frame and wish to get the track result.
         if info is None:
             info = {}
 
         prev_output = info.get('previous_output', OrderedDict())
 
-        if info.get('init_object_ids', False):
+        if info.get('init_object_ids', False): # in run_video, there is no info provide
             init_info_split = self._split_info(info)
             for obj_init_info in init_info_split.values():
                 obj_init_info['previous_output'] = prev_output

@@ -36,7 +36,7 @@ class Lasot(BaseVideoDataset):
             data_fraction - Fraction of dataset to be used. The complete dataset is used by default
         """
         root = env_settings().lasot_dir if root is None else root
-        super().__init__('LaSOT', root, image_loader)
+        super().__init__('LaSOT', root, image_loader)  # inherit features of BaseVideoDataset
 
         # Keep a list of all classes
         self.class_list = [f for f in os.listdir(self.root)]

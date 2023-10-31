@@ -51,8 +51,8 @@ class Tracker:
         self.run_id = run_id
         self.display_name = display_name
 
-        env = env_settings()
-        if self.run_id is None:
+        env = env_settings()  # environment settings
+        if self.run_id is None:  # Questions: The code also contains a segmentation module?
             self.results_dir = '{}/{}/{}'.format(env.results_path, self.name, self.parameter_name)
             self.segmentation_dir = '{}/{}/{}'.format(env.segmentation_path, self.name, self.parameter_name)
         else:
@@ -69,7 +69,7 @@ class Tracker:
         self.visdom = None
 
 
-    def _init_visdom(self, visdom_info, debug):
+    def _init_visdom(self, visdom_info, debug): # visdom
         visdom_info = {} if visdom_info is None else visdom_info
         self.pause_mode = False
         self.step = False
@@ -233,25 +233,30 @@ class Tracker:
             debug: Debug level.
         """
 
-        params = self.get_parameters()
+        params = self.get_parameters()  # get parameters for the current model (trdimp.trdimp)
+        # get params.net, but not initialize
 
         debug_ = debug
         if debug is None:
-            debug_ = getattr(params, 'debug', 0)
+            debug_ = getattr(params, 'debug', 0)  # If the command doesn't provide debug level, it will try to find a debug level from parameter file.
         params.debug = debug_
 
         params.tracker_name = self.name
         params.param_name = self.parameter_name
-        self._init_visdom(visdom_info, debug_)
+        self._init_visdom(visdom_info, debug_)  # it is about GUI
 
         multiobj_mode = getattr(params, 'multiobj_mode', getattr(self.tracker_class, 'multiobj_mode', 'default'))
+        # The model can also track multiple objections?
 
         if multiobj_mode == 'default':
+            # print('no multiobj_model, default mode.')
             tracker = self.create_tracker(params)
-            if hasattr(tracker, 'initialize_features'):
+            if hasattr(tracker, 'initialize_features'):  # initialize the tracker
                 tracker.initialize_features()
 
         elif multiobj_mode == 'parallel':
+            # print('multiobj_model, parallel mode.')
+            ### Currently, the model is running under parallel mode ###
             tracker = MultiObjectWrapper(self.tracker_class, params, self.visdom, fast_load=True)
         else:
             raise ValueError('Unknown multi object mode {}'.format(multiobj_mode))
@@ -261,14 +266,14 @@ class Tracker:
 
         output_boxes = []
 
-        cap = cv.VideoCapture(videofilepath)
+        cap = cv.VideoCapture(videofilepath)  # get the video
         display_name = 'Display: ' + tracker.params.tracker_name
         cv.namedWindow(display_name, cv.WINDOW_NORMAL | cv.WINDOW_KEEPRATIO)
         cv.resizeWindow(display_name, 960, 720)
-        success, frame = cap.read()
+        success, frame = cap.read()  # get the first frame
         cv.imshow(display_name, frame)
 
-        def _build_init_info(box):
+        def _build_init_info(box):  # define a function inside the function
             return {'init_bbox': OrderedDict({1: box}), 'init_object_ids': [1, ], 'object_ids': [1, ],
                     'sequence_object_ids': [1, ]}
 
@@ -279,7 +284,7 @@ class Tracker:
             assert isinstance(optional_box, (list, tuple))
             assert len(optional_box) == 4, "valid box's foramt is [x,y,w,h]"
             tracker.initialize(frame, _build_init_info(optional_box))
-            output_boxes.append(optional_box)
+            output_boxes.append(optional_box)  # the first frame's result is the provided box
         else:
             while True:
                 # cv.waitKey()
@@ -295,7 +300,7 @@ class Tracker:
                 break
 
         while True:
-            ret, frame = cap.read()
+            ret, frame = cap.read()  # get next frame
 
             if frame is None:
                 break
@@ -303,7 +308,7 @@ class Tracker:
             frame_disp = frame.copy()
 
             # Draw box
-            out = tracker.track(frame)
+            out = tracker.track(frame)  # implement the model to track.Only provide frame information.
             state = [int(s) for s in out['target_bbox'][1]]
             output_boxes.append(state)
 
@@ -334,7 +339,7 @@ class Tracker:
                 x, y, w, h = cv.selectROI(display_name, frame_disp, fromCenter=False)
                 init_state = [x, y, w, h]
                 tracker.initialize(frame, _build_init_info(init_state))
-                output_boxes.append(init_state)
+                output_boxes.append(init_state)  # a list for the track result of each frame
 
         # When everything done, release the capture
         cap.release()
@@ -346,7 +351,7 @@ class Tracker:
             video_name = Path(videofilepath).stem
             base_results_path = os.path.join(self.results_dir, 'video_{}'.format(video_name))
 
-            tracked_bb = np.array(output_boxes).astype(int)
+            tracked_bb = np.array(output_boxes).astype(int)  # final track result
             bbox_file = '{}.txt'.format(base_results_path)
             np.savetxt(bbox_file, tracked_bb, delimiter='\t', fmt='%d')
 
@@ -650,7 +655,7 @@ class Tracker:
     def get_parameters(self):
         """Get parameters."""
         param_module = importlib.import_module('pytracking.parameter.{}.{}'.format(self.name, self.parameter_name))
-        params = param_module.parameters()
+        params = param_module.parameters()  # initialize the params, run the function parameters() in trdimp.py
         return params
 
 

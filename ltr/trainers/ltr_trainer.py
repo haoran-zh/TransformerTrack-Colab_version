@@ -6,6 +6,7 @@ from ltr.admin.tensorboard import TensorboardWriter
 import torch
 import time
 
+import pdb
 
 class LTRTrainer(BaseTrainer):
     def __init__(self, actor, loaders, optimizer, settings, lr_scheduler=None):
@@ -43,24 +44,33 @@ class LTRTrainer(BaseTrainer):
 
     def cycle_dataset(self, loader):
         """Do a cycle of training or validation."""
-
+        # print('ready to self.actor.train(loader.training)')
         self.actor.train(loader.training)
+        print('ready to set_grad_enabled')
         torch.set_grad_enabled(loader.training)
-
+        print('ready to _init_timing')
         self._init_timing()
+        # print('end of _init_timing')
+
+        # pdb.set_trace()
 
         for i, data in enumerate(loader, 1):
             # get inputs
+            # print('i:', i)
             if self.move_data_to_gpu:
                 data = data.to(self.device)
 
             data['epoch'] = self.epoch
             data['settings'] = self.settings
 
+
             # forward pass
+            # print('into forward pass')
+            # print('loss, stats = self.actor(data)')
             loss, stats = self.actor(data)
 
             # backward pass and update weights
+            # print('into backward pass and update weights')
             if loader.training:
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -75,9 +85,13 @@ class LTRTrainer(BaseTrainer):
 
     def train_epoch(self):
         """Do one epoch for each loader."""
-        for loader in self.loaders:
+        # print('into train_epoch')
+        for loader in self.loaders:  # self.loaders has train_loader and val_loader
+            # print('into loader in self.loaders')
             if self.epoch % loader.epoch_interval == 0:
+                # print('ready to self.cycle_dataset(loader)')
                 self.cycle_dataset(loader)
+            # print('out the cycle_dataset')
 
         self._stats_new_epoch()
         self._write_tensorboard()

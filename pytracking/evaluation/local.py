@@ -10,12 +10,12 @@ def local_env_settings():
     settings.got_packed_results_path = ''
     settings.got_reports_path = ''
     settings.lasot_path = ''
-    settings.network_path = '' 
+    settings.network_path = '/content/drive/MyDrive/TUMresearch/TransformerTrack/pytracking/networks/'    # Where tracking networks are stored.
     settings.nfs_path = ''
     settings.otb_path = ''
-    settings.result_plot_path = ''
-    settings.results_path = ''   
-    settings.segmentation_path = ''
+    settings.result_plot_path = '/content/drive/MyDrive/TUMresearch/TransformerTrack/pytracking/result_plots/'
+    settings.results_path = '/content/drive/MyDrive/TUMresearch/TransformerTrack/pytracking/tracking_results/'    # Where to store tracking results
+    settings.segmentation_path = '/content/drive/MyDrive/TUMresearch/TransformerTrack/pytracking/segmentation_results/'
     settings.tn_packed_results_path = ''
     settings.tpl_path = ''
     settings.trackingnet_path = ''

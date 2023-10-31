@@ -28,7 +28,7 @@ def parameters():
 
     # transformer memory update
     params.transformer_skipping = 5
-    params.transformer_memory_size = 20
+    params.transformer_memory_size = 20  # previous 20
 
     # Detection parameters
     params.window_output = False

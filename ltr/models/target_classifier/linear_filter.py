@@ -43,6 +43,7 @@ class LinearFilter(nn.Module):
         args:
             train_feat:  Backbone features for the train samples (4 or 5 dims).
             test_feat:  Backbone features for the test samples (4 or 5 dims).
+            4 dims:
             trian_bb:  Target boxes (x,y,w,h) for the train samples in image coordinates. Dims (images, sequences, 4).
             *args, **kwargs:  These are passed to the optimizer module.
         returns:

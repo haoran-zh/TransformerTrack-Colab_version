@@ -66,6 +66,7 @@ class BaseTrainer:
 
                 for epoch in range(self.epoch+1, max_epochs+1):
                     self.epoch = epoch
+                    print('current epoch', epoch)
 
                     self.train_epoch()
 
@@ -150,7 +151,7 @@ class BaseTrainer:
             if checkpoint_list:
                 checkpoint_path = checkpoint_list[-1]
             else:
-                print('No matching checkpoint file found')
+                print('No matching checkpoint file found in base_trainer')
                 return
         elif isinstance(checkpoint, int):
             # Checkpoint is the epoch number

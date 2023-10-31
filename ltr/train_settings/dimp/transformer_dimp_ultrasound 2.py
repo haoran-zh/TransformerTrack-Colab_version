@@ -1,5 +1,5 @@
 import torch.optim as optim
-from ltr.dataset import Lasot, Got10k, TrackingNet, MSCOCOSeq
+from ltr.dataset import Ultrasound
 from ltr.data import processing, sampler, LTRLoader
 from ltr.models.tracking import dimpnet
 import ltr.models.loss as ltr_losses
@@ -9,12 +9,17 @@ from ltr.trainers import LTRTrainer
 import ltr.data.transforms as tfm
 from ltr import MultiGPU
 
+import ltr.admin.loading as ltr_loading
+
+import torch
+
 
 def run(settings):
+    # settings for training
     settings.description = 'Transformer-assisted tracker. Our baseline approach is SuperDiMP'
-    settings.batch_size = 40
+    settings.batch_size = 24
     settings.num_workers = 8
-    settings.multi_gpu = True
+    settings.multi_gpu = False  # multi_gpu training
     settings.print_interval = 1
     settings.normalize_mean = [0.485, 0.456, 0.406]
     settings.normalize_std = [0.229, 0.224, 0.225]
@@ -27,16 +32,18 @@ def run(settings):
     settings.scale_jitter_factor = {'train': 0.25, 'test': 0.5}
     settings.hinge_threshold = 0.05
     # settings.print_stats = ['Loss/total', 'Loss/iou', 'ClfTrain/init_loss', 'ClfTrain/test_loss']
+    print('batch size', str(settings.batch_size))
+    print('num workers', str(settings.num_workers))
 
-    # Train datasets
-    lasot_train = Lasot(settings.env.lasot_dir, split='train')
-    got10k_train = Got10k(settings.env.got10k_dir, split='vottrain')
-    trackingnet_train = TrackingNet(settings.env.trackingnet_dir, set_ids=list(range(4)))   
-    coco_train = MSCOCOSeq(settings.env.coco_dir)
+    # Train datasets, provide four datasets to train.
+    ultrasound_train = Ultrasound(settings.env.ultrasound_dir, split='train')
+    # lasot_train = Lasot(settings.env.lasot_dir, split='train')
+    # got10k_train = Got10k(settings.env.got10k_dir, split='vottrain')
+    # trackingnet_train = TrackingNet(settings.env.trackingnet_dir, set_ids=list(range(4)))
+    # coco_train = MSCOCOSeq(settings.env.coco_dir)
 
     # Validation datasets
-    got10k_val = Got10k(settings.env.got10k_dir, split='votval')
-
+    ultrasound_val = Ultrasound(settings.env.got10k_dir, split='val')
 
     # Data transform
     transform_joint = tfm.Transform(tfm.ToGrayscale(probability=0.05),
@@ -82,7 +89,7 @@ def run(settings):
                                                       joint_transform=transform_joint)
 
     # Train sampler and loader
-    dataset_train = sampler.DiMPSampler([lasot_train, got10k_train, trackingnet_train, coco_train], [1,1,1,1],
+    dataset_train = sampler.DiMPSampler([ultrasound_train], [1],
                                         samples_per_epoch=50000, max_gap=500, num_test_frames=3, num_train_frames=3,
                                         processing=data_processing_train)
 
@@ -90,10 +97,11 @@ def run(settings):
                              shuffle=True, drop_last=True, stack_dim=1)
 
     # Validation samplers and loaders
-    dataset_val = sampler.DiMPSampler([got10k_val], [1], samples_per_epoch=10000, max_gap=500,
+    dataset_val = sampler.DiMPSampler([ultrasound_val], [1], samples_per_epoch=10000, max_gap=500,
                                       num_test_frames=3, num_train_frames=3,
                                       processing=data_processing_val)
-
+    # ||
+    # v
     loader_val = LTRLoader('val', dataset_val, training=False, batch_size=settings.batch_size, num_workers=settings.num_workers,
                            shuffle=False, drop_last=True, epoch_interval=5, stack_dim=1)
 
@@ -104,15 +112,27 @@ def run(settings):
                             init_gauss_sigma=output_sigma * settings.feature_sz, num_dist_bins=100,
                             bin_displacement=0.1, mask_init_factor=3.0, target_mask_act='sigmoid', score_act='relu',
                             frozen_backbone_layers=['conv1', 'bn1', 'layer1', 'layer2'])
+    # open the pretrained model. use it to fine-tuning.
 
+
+    net, _ = ltr_loading.load_network(network_dir='../pytracking/networks/trdimp_net.pth.tar')
+    print('net load finished')
+    net = net.cuda()
+    print('convert to cuda finished')
+    assert net is not None, 'fail to load pretrained network'
+
+    # net = load_network('../pytracking/networks/trdimp_net.pth.tar')
+    #print(pretrained_net.keys())
+    #net.load_state_dict(pretrained_net['stats'])
     # Wrap the network for multi GPU training
     if settings.multi_gpu:
         net = MultiGPU(net, dim=1)
 
     objective = {'bb_ce': klreg_losses.KLRegression(), 'test_clf': ltr_losses.LBHinge(threshold=settings.hinge_threshold)}
 
-    loss_weight = {'bb_ce': 0.01, 'test_clf': 100, 'test_init_clf': 100, 'test_iter_clf': 400}
-
+    # loss_weight = {'bb_ce': 0.01, 'test_clf': 100, 'test_init_clf': 100, 'test_iter_clf': 400}
+    loss_weight = {'bb_ce': 0.02, 'test_clf': 0.001, 'test_init_clf': 0.001, 'test_iter_clf': 0.001}
+    print('loss_weight', loss_weight['bb_ce'])
     actor = tracking_actors.KLDiMPActor(net=net, objective=objective, loss_weight=loss_weight)
 
     # Optimizer
@@ -127,5 +147,7 @@ def run(settings):
     lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.2)
 
     trainer = LTRTrainer(actor, [loader_train, loader_val], optimizer, settings, lr_scheduler)
-
-    trainer.train(50, load_latest=True, fail_safe=True)
+    print('ready to trainer.train()')
+    total_epoch = 60
+    print('Total epoch:', total_epoch)
+    trainer.train(total_epoch, load_latest=True, fail_safe=True)

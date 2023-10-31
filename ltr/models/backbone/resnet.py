@@ -1,10 +1,16 @@
 import math
 import torch.nn as nn
+import torch
+
 from collections import OrderedDict
 import torch.utils.model_zoo as model_zoo
-from torchvision.models.resnet import model_urls
+# from torchvision.models.resnet import model_urls
 from .base import Backbone
-
+from torchvision.models import ResNet50_Weights
+# from torchvision.models import resnet50 as rsn50
+import torchvision.models as models
+from torchvision.models.resnet import ResNet18_Weights
+# from torchvision.models.resnet import ResNet50_Weights
 
 def conv3x3(in_planes, out_planes, stride=1, dilation=1):
     """3x3 convolution with padding"""
@@ -253,11 +259,12 @@ def resnet18(output_layers=None, pretrained=False, **kwargs):
     model = ResNet(BasicBlock, [2, 2, 2, 2], output_layers, **kwargs)
 
     if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
+        # model.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
+        model = torch.utils.model_zoo.load_url(ResNet18_Weights.IMAGENET1K_V2)
     return model
 
 
-def resnet50(output_layers=None, pretrained=False, **kwargs):
+def resnet50(output_layers=None, pretrained=True, **kwargs):
     """Constructs a ResNet-50 model.
     """
 
@@ -270,5 +277,8 @@ def resnet50(output_layers=None, pretrained=False, **kwargs):
 
     model = ResNet(Bottleneck, [3, 4, 6, 3], output_layers, **kwargs)
     if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['resnet50']))
+        pretrained_model = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
+        model.load_state_dict(pretrained_model.state_dict())
+        # model = torch.utils.model_zoo.load_url('https://s3.amazonaws.com/modelzoo-networks/wide-resnet-50-2-export-5ae25d50.pth')
+    # model = rsn50(weights=ResNet50_Weights.IMAGENET1K_V2)
     return model

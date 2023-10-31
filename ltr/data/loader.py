@@ -2,8 +2,17 @@ import torch
 import torch.utils.data.dataloader
 import importlib
 import collections
-from torch._six import string_classes, int_classes
+#  from torch._six import string_classes, int_classes
+string_classes = (str,)
+int_classes = (int,)
 from pytracking import TensorDict, TensorList
+
+
+
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", message="An output with one or more elements was resized since it had shape")
 
 
 def _check_use_shared_memory():
